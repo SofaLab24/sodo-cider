@@ -1,0 +1,180 @@
+# PR: lint + build. Push to main / manual dispatch: build, push image to GHCR, deploy to VPS over SSH.
+name: Web CI and deploy
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web-docker.yml"
+      - "docker-compose.deploy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-docker.yml"
+      - "docker-compose.deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  NODE_VERSION: "22.4.1"
+
+jobs:
+  ci:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sodo
+          POSTGRES_PASSWORD: sodo
+          POSTGRES_DB: sodo_sidrine
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodo -d sodo_sidrine"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://sodo:sodo@localhost:5432/sodo_sidrine
+      PAYLOAD_SECRET: github-actions-ci-placeholder-secret-min-32-chars
+      NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sodo
+          POSTGRES_PASSWORD: sodo
+          POSTGRES_DB: sodo_sidrine
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodo -d sodo_sidrine"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://sodo:sodo@localhost:5432/sodo_sidrine
+      PAYLOAD_SECRET: github-actions-ci-placeholder-secret-min-32-chars
+      NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+      SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check VPS deploy variable
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ -z "${{ vars.VPS_DEPLOY_PATH }}" ]; then
+            echo "Set the repository variable VPS_DEPLOY_PATH (see docs/github-actions-vps.md)" >&2
+            exit 1
+          fi
+
+      - name: Image name (GHCR, lowercase)
+        id: image
+        working-directory: ${{ github.workspace }}
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_LC=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${OWNER_LC}/${REPO_LC}/web" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker build and push
+        working-directory: ${{ github.workspace }}
+        run: |
+          IMG="${{ steps.image.outputs.image }}"
+          docker build -t "${IMG}:${{ github.sha }}" -t "${IMG}:latest" -f web/Dockerfile web
+          docker push "${IMG}:${{ github.sha }}"
+          docker push "${IMG}:latest"
+
+      - name: Upload compose file to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          source: "docker-compose.deploy.yml"
+          target: ${{ vars.VPS_DEPLOY_PATH }}/
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ vars.VPS_DEPLOY_PATH }}"
+            export WEB_IMAGE="${{ steps.image.outputs.image }}:${{ github.sha }}"
+            if [ -n "${{ secrets.GHCR_PULL_TOKEN }}" ]; then
+              LOGIN_USER='${{ vars.GHCR_USERNAME }}'
+              if [ -z "$LOGIN_USER" ]; then LOGIN_USER='${{ github.actor }}'; fi
+              echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "$LOGIN_USER" --password-stdin
+            fi
+            docker compose -f docker-compose.deploy.yml --env-file .env pull web
+            docker compose -f docker-compose.deploy.yml --env-file .env up -d --remove-orphans

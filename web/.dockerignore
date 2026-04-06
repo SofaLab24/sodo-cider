@@ -1,0 +1,18 @@
+# Installed inside the image with `npm ci --omit=dev`
+node_modules
+
+# Never ship local env files into the image
+.env
+.env.*
+!.env.example
+
+# Rebuilt by Next.js at runtime; omitting shrinks the image and CI context
+.next/cache
+
+# Git / tooling (not needed at runtime)
+.git
+.gitignore
+Dockerfile
+.dockerignore
+npm-debug.log*
+coverage

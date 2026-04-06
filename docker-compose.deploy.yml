@@ -1,0 +1,38 @@
+# Production stack for the VPS. Used by GitHub Actions deploy (see docs/github-actions-vps.md).
+# On the server: place this file in VPS_DEPLOY_PATH next to a `.env` you create once (see docs).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sodo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env on the VPS}
+      POSTGRES_DB: sodo_sidrine
+    volumes:
+      - sodo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sodo -d sodo_sidrine"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    # Set by the deploy job: ghcr.io/<owner>/<repo>/web:<git-sha>
+    image: ${WEB_IMAGE:?WEB_IMAGE is set by CI when running docker compose}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOKS_ENDPOINT_SECRET: ${STRIPE_WEBHOOKS_ENDPOINT_SECRET:-}
+      PAYLOAD_DATABASE_PUSH: ${PAYLOAD_DATABASE_PUSH:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  sodo_pgdata:

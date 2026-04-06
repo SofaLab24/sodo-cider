@@ -11,12 +11,16 @@
 # testing
 /coverage
 
+# docs
+docs/
+
 # next.js
 /.next/
 /out/
 
 # production
 /build
+media/
 
 # misc
 .DS_Store
