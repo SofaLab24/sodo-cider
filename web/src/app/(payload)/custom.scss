@@ -1,0 +1,53 @@
+/* Payload admin overrides (optional) */
+
+/*
+ * Site `globals.css` loads Tailwind preflight on the whole app, including /admin.
+ * Preflight + `body { color: ... }` can override Payload’s `.collapsible__toggle { color: transparent }`,
+ * so the screen-reader “Toggle block” label becomes visible and stacks over the block header.
+ */
+.collapsible__toggle {
+  color: transparent !important;
+}
+
+/* Keep the accessible label available to AT without painting it on screen */
+.collapsible__toggle span {
+  clip: rect(0, 0, 0, 0) !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.blocks-field__block-header {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/*
+ * Stronger primary / secondary buttons (Tailwind body styles can wash out defaults).
+ */
+.btn--style-primary {
+  --bg-color: #1e4d36 !important;
+  --color: #faf8f5 !important;
+  --hover-bg: #2a6b4a !important;
+  --hover-color: #faf8f5 !important;
+}
+
+.btn--style-secondary {
+  --color: #1a2f24 !important;
+  --bg-color: #f4f1ea !important;
+  --btn-border: 1px solid #2d5a40 !important;
+  --hover-color: #0f1f17 !important;
+  --hover-bg: #e8e4da !important;
+  --hover-btn-border: 1px solid #1e4d36 !important;
+}
+
+.btn--style-icon-primary,
+.btn--style-icon-secondary {
+  opacity: 1 !important;
+}

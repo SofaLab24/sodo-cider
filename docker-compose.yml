@@ -1,0 +1,19 @@
+# Local PostgreSQL for Payload (plan §2.3). From repo root:
+#   docker compose up -d
+# Then set DATABASE_URL in web/.env.local — see web/.env.example
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sodo
+      POSTGRES_PASSWORD: sodo
+      POSTGRES_DB: sodo_sidrine
+    ports:
+      - "5432:5432"
+    volumes:
+      - sodo_pgdata:/var/lib/postgresql/data
+
+volumes:
+  sodo_pgdata:

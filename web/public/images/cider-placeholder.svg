@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" fill="none">
+  <rect width="800" height="1000" fill="#ede6d5"/>
+  <ellipse cx="400" cy="520" rx="180" ry="280" fill="#2d5a45" opacity="0.35"/>
+  <ellipse cx="400" cy="500" rx="140" ry="240" fill="#1e3d2f" opacity="0.5"/>
+  <rect x="360" y="180" width="80" height="120" rx="8" fill="#c17f3a" opacity="0.6"/>
+  <text x="400" y="880" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#1e3d2f" opacity="0.5">Sodo Sidrin</text>
+</svg>
