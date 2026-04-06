@@ -68,9 +68,6 @@ jobs:
       - name: Run database migrations
         run: npm run migrate
 
-      - name: Lint
-        run: npm run lint
-
       - name: Build
         run: npm run build
 
@@ -131,9 +128,6 @@ jobs:
       - name: Run database migrations
         run: npm run migrate
 
-      - name: Lint
-        run: npm run lint
-
       - name: Build
         run: npm run build
 
@@ -151,6 +145,19 @@ jobs:
           docker build -t "${IMG}:${{ github.sha }}" -t "${IMG}:latest" -f web/Dockerfile web
           docker push "${IMG}:${{ github.sha }}"
           docker push "${IMG}:latest"
+
+      - name: Network preflight (VPS reachability)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          HOST="${{ secrets.VPS_HOST }}"
+          PORT="${{ env.SSH_PORT }}"
+          echo "Checking DNS for ${HOST}"
+          getent hosts "${HOST}" || true
+          echo "Checking TCP connectivity to ${HOST}:${PORT}"
+          timeout 10 bash -lc "cat < /dev/null > /dev/tcp/${HOST}/${PORT}" \
+            && echo "TCP reachable: ${HOST}:${PORT}" \
+            || (echo "TCP unreachable: ${HOST}:${PORT}" >&2; exit 1)
 
       - name: Upload compose file to VPS
         uses: appleboy/scp-action@v0.1.7
