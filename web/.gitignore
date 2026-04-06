@@ -20,7 +20,7 @@ docs/
 
 # production
 /build
-media/
+/media/
 
 # misc
 .DS_Store

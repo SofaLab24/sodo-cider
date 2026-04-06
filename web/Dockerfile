@@ -6,7 +6,7 @@
 # Example (from repo root):
 #   cd web && npm ci && npm run lint && npm run build && cd .. && docker build -f web/Dockerfile web
 
-ARG NODE_VERSION=22.4.1
+ARG NODE_VERSION=22
 FROM node:${NODE_VERSION}-alpine
 WORKDIR /app
 ENV NODE_ENV=production
